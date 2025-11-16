@@ -7,27 +7,64 @@ jobs:
   test_freebsd_logic:
     runs-on: macos-latest
     steps:
-      # ... (setup steps: checkout, python setup) ...
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Attempt to dump (Expected 0-byte output due to logic bug)
+        id: test_run
         run: |
           SCRIPT_PATH=atomics/T1003.007/src/dump_heap.py
+          OUTPUT_FILE=dump_output_freebsd.bin
           
+          # 1. Clean up any previous output file
+          rm -f $OUTPUT_FILE
+
+          # 2. Run the script and capture the exit code
           set +e
-          # Target PID 1. The script will use the FreeBSD logic if run on a BSD-like system.
-          python $SCRIPT_PATH 1 dump_output_freebsd.bin
+          python $SCRIPT_PATH 1 $OUTPUT_FILE 2> error.log
           EXIT_CODE=$?
           set -e
           
-          # Check the file size on macOS (stat -f%z)
-          if [ $EXIT_CODE -eq 0 ]; then
-            FILE_SIZE=$(stat -f%z "dump_output_freebsd.bin" 2>/dev/null || echo 1)
-            if [ $FILE_SIZE -eq 0 ]; then
-               echo "Test Succeeded: Script ran but dumped a 0-byte file, confirming the mem_start logic error."
-            else
-               echo "::warning file=$SCRIPT_PATH::Test result ambiguous: Script succeeded and produced a non-zero file. Bug not exposed."
-               exit 1
-            fi
+          echo "EXIT_CODE=$EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # 3. Check the file size on macOS (stat -f%z)
+          # We check if the file exists and get its size, otherwise default to -1 to distinguish from 0.
+          if [ -f "$OUTPUT_FILE" ]; then
+            FILE_SIZE=$(stat -f%z "$OUTPUT_FILE")
+            echo "FILE_SIZE=$FILE_SIZE" >> $GITHUB_OUTPUT
           else
-            echo "Test Succeeded: Script failed with exit code $EXIT_CODE (likely due to path/parsing issues, still proves lack of robustness)."
+            echo "FILE_SIZE=-1" >> $GITHUB_OUTPUT # File was not created
+          fi
+
+      - name: Analyze Test Result
+        run: |
+          SCRIPT_PATH=atomics/T1003.007/src/dump_heap.py
+          EXIT_CODE=${{ steps.test_run.outputs.EXIT_CODE }}
+          FILE_SIZE=${{ steps.test_run.outputs.FILE_SIZE }}
+          
+          echo "Script Exit Code: $EXIT_CODE"
+          echo "Output File Size: $FILE_SIZE bytes"
+          
+          # Scenario A: Script Failed (Expected behavior on macOS)
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "Test Succeeded: Script failed with exit code $EXIT_CODE (likely due to path/parsing issues, proves lack of robustness)."
+            
+          # Scenario B: Script Succeeded, but produced 0 bytes (Exposes the core bug)
+          elif [ "$EXIT_CODE" -eq 0 ] && [ "$FILE_SIZE" -eq 0 ]; then
+            echo "Test Succeeded: Script ran successfully but dumped a 0-byte file, confirming the mem_start logic error."
+            
+          # Scenario C: Script Succeeded and produced a non-zero file (Unexpected success)
+          elif [ "$EXIT_CODE" -eq 0 ] && [ "$FILE_SIZE" -gt 0 ]; then
+            echo "::error file=$SCRIPT_PATH::Test FAILED: Script succeeded and produced a non-zero file. The bug was not exposed."
+            exit 1
+            
+          # Scenario D: Script Succeeded but file wasn't created (FILE_SIZE=-1) - Ambiguous failure
+          else
+            echo "::warning file=$SCRIPT_PATH::Test result ambiguous: Script succeeded unexpectedly but file size check was unclear. Investigating is needed."
+            exit 1
           fi
