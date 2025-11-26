@@ -82,10 +82,10 @@ atomic_tests:
       who -a
     name: sh
     
-- name: System Network Connections Discovery via sockstat (FreeBSD)
+- name: System Network Connections Discovery via sockstat (Linux, FreeBSD)
   description: |
     Enumerate IPv4/IPv6 network endpoints on FreeBSD using sockstat.
-  supported_platforms: [freebsd]
+  supported_platforms: [linux]
   executor:
     name: sh
     command: |
