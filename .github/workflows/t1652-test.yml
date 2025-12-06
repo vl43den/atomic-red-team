@@ -1,0 +1,40 @@
+name: T1652 Test
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  linux-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run lsmod test
+        run: |
+          echo "Running lsmod test"
+          lsmod
+
+      - name: Run find drivers test
+        run: |
+          echo "Running find drivers test"
+          find /lib/modules/$(uname -r)/kernel/drivers -name "*.ko*"
+
+  macos-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run kextstat test
+        run: |
+          echo "Running kextstat test"
+          kextstat
+
+      - name: Run kextfind test
+        run: |
+          echo "Running kextfind test"
+          kextfind
