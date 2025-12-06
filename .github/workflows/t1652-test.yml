@@ -12,29 +12,33 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          path: './atomic-red-team'
 
-      - name: Run lsmod test
+      - name: Install Invoke-AtomicRedTeam
+        shell: pwsh
         run: |
-          echo "Running lsmod test"
-          lsmod
+          Install-Module -Name Invoke-AtomicRedTeam -Force -Scope CurrentUser
 
-      - name: Run find drivers test
+      - name: Run T1652 tests
+        shell: pwsh
         run: |
-          echo "Running find drivers test"
-          find /lib/modules/$(uname -r)/kernel/drivers -name "*.ko*"
+          Invoke-AtomicTest T1652 -TestNumbers 2,3 -Path "./atomic-red-team/atomics"
 
   macos-test:
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          path: './atomic-red-team'
 
-      - name: Run kextstat test
+      - name: Install Invoke-AtomicRedTeam
+        shell: pwsh
         run: |
-          echo "Running kextstat test"
-          kextstat
+          Install-Module -Name Invoke-AtomicRedTeam -Force -Scope CurrentUser
 
-      - name: Run kextfind test
+      - name: Run T1652 tests
+        shell: pwsh
         run: |
-          echo "Running kextfind test"
-          kextfind
+          Invoke-AtomicTest T1652 -TestNumbers 4,5 -Path "./atomic-red-team/atomics"
