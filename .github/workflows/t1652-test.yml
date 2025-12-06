@@ -23,7 +23,8 @@ jobs:
       - name: Run T1652 tests
         shell: pwsh
         run: |
-          Invoke-AtomicTest T1652 -TestNumbers 2,3 -Path "./atomic-red-team/atomics"
+          $ErrorActionPreference = "Stop"
+          Invoke-AtomicTest T1652 -TestNumbers 2,3 -Path "./atomic-red-team/atomics" -Verbose
 
   macos-test:
     runs-on: macos-latest
@@ -41,4 +42,5 @@ jobs:
       - name: Run T1652 tests
         shell: pwsh
         run: |
-          Invoke-AtomicTest T1652 -TestNumbers 4,5 -Path "./atomic-red-team/atomics"
+          $ErrorActionPreference = "Stop"
+          Invoke-AtomicTest T1652 -TestNumbers 4,5 -Path "./atomic-red-team/atomics" -Verbose
