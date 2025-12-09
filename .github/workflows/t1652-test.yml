@@ -4,12 +4,12 @@ on:
   push:
     branches: [ "master", "main" ]
     paths:
-      - 'atomics/T1113/**' # Only trigger when you change this technique
+      - 'atomics/T1113/**'
   pull_request:
     branches: [ "master", "main" ]
     paths:
       - 'atomics/T1113/**'
-  workflow_dispatch: # Allows you to manually click "Run" in GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   test-atomic-t1113:
@@ -19,14 +19,13 @@ jobs:
     - name: Checkout Repo
       uses: actions/checkout@v3
 
-    - name: Setup - Create Dummy RDP Cache Artifacts
-      # The GitHub runner won't have real RDP cache. We must fake it 
-      # so the tools (bmc-tools) have something to target.
+    - name: 🛠️ Setup - Create Dummy RDP Cache Artifacts
+      # Required because GitHub runners don't have real RDP history
       run: |
         $CachePath = "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
         New-Item -Path $CachePath -ItemType Directory -Force | Out-Null
         
-        # Create a dummy bcache.bmc file with random data (header mimicking might be needed for strict tools, but usually size > 0 is enough for a "run" test)
+        # Create dummy bcache.bmc and bin files
         $DummyData = new-object byte[] 1024
         (new-object Random).NextBytes($DummyData)
         [IO.File]::WriteAllBytes("$CachePath\bcache.bmc", $DummyData)
@@ -34,23 +33,32 @@ jobs:
         
         Write-Host "Created dummy RDP cache files at $CachePath"
 
-    - name: Install Invoke-AtomicRedTeam
+    - name: 📥 Install Invoke-AtomicRedTeam Module
+      # FIXED STEP: Install directly from PSGallery instead of using the wrapper script
       run: |
-        # We install the execution framework, but we tell it NOT to download the atomics repo
-        # because we want to use the atomics checked out in the current workspace.
-        IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing);
-        Install-AtomicRedTeam -getAtomics $false -Force
+        Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+        
+        # 1. Bootstrap the NuGet provider (required for module installation)
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser
+        
+        # 2. Install the Atomic Red Team framework module
+        # -SkipPublisherCheck is often needed in CI to avoid confirmation prompts
+        Install-Module -Name Invoke-AtomicRedTeam -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
+        
+        # 3. Import to verify
+        Import-Module Invoke-AtomicRedTeam -Force
+        Write-Host "Invoke-AtomicRedTeam successfully installed."
       shell: powershell
 
-    - name: Run Atomic Test T1113
+    - name: 🧪 Run Atomic Test T1113
       run: |
         # Point to the 'atomics' folder in your checked-out repo
         $RepoAtomicsPath = "$env:GITHUB_WORKSPACE\atomics"
         
         Write-Host "Running T1113 from: $RepoAtomicsPath"
         
-        # This runs ALL tests in T1113. 
-        # If you want only your specific test, add: -TestGuids "YOUR-GUID-HERE"
+        # Run the tests. We use the updated T1113 yaml from your checkout.
+        # We target specific GUIDs or just run the whole technique.
         Invoke-AtomicTest T1113 -PathToAtomicsFolder $RepoAtomicsPath -GetPrereqs
         Invoke-AtomicTest T1113 -PathToAtomicsFolder $RepoAtomicsPath -Force
       shell: powershell
