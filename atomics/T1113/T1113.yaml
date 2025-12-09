@@ -226,7 +226,7 @@ atomic_tests:
       $toolsDir = "$env:TEMP\bmc-tools.exe"
       $outputDir = "$env:TEMP\rdp_screens"
       
-      Invoke-WebRequest -Uri $url -OutFile $toolsDir
+      Invoke-WebRequest -Uri $url -OutFile $toolsDir -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' -UseBasicParsing
       
       # Run bmc-tools to export cache
       & $toolsDir -s 600 -b -d $outputDir
@@ -251,7 +251,7 @@ atomic_tests:
       $cachePath = "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
       $output = "$env:TEMP\RDP_stitcher_output"
 
-      Invoke-WebRequest -Uri $url -OutFile $stitcher
+      Invoke-WebRequest -Uri $url -OutFile $stitcher -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' -UseBasicParsing
       
       # Execute Stitcher
       & $stitcher -p $cachePath -o $output
