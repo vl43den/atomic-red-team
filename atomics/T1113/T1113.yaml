@@ -243,7 +243,7 @@ atomic_tests:
       # Create output directory
       New-Item -ItemType Directory -Path #{output_dir} -Force | Out-Null
 
-      # Download official Python script
+      # official Python script download
       & curl.exe -L $url --output $toolsDir
       
       # Execute with Python
@@ -256,7 +256,7 @@ atomic_tests:
   auto_generated_guid: 12f5c942-3e21-4a1b-9f21-789a2b1c4d3e
   description: |
     Simulates an attacker manually copying the RDP cache folder for offline analysis using Robocopy.
-    This avoids dropping new binaries but generates suspicious file access events.
+    Avoids dropping new binaries but generates suspicious file access events.
   supported_platforms:
   - windows
   input_arguments:
