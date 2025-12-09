@@ -1,47 +1,56 @@
-name: T1652 Test
+name: Test RDP Cache Atomic (T1113)
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ "master", "main" ]
+    paths:
+      - 'atomics/T1113/**' # Only trigger when you change this technique
+  pull_request:
+    branches: [ "master", "main" ]
+    paths:
+      - 'atomics/T1113/**'
+  workflow_dispatch: # Allows you to manually click "Run" in GitHub Actions tab
 
 jobs:
-  linux-test:
-    runs-on: ubuntu-latest
+  test-atomic-t1113:
+    runs-on: windows-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          path: './atomic-red-team'
+    - name: Checkout Repo
+      uses: actions/checkout@v3
 
-      - name: Install Invoke-AtomicRedTeam
-        shell: pwsh
-        run: |
-          Install-Module -Name Invoke-AtomicRedTeam -Force -Scope CurrentUser
+    - name: Setup - Create Dummy RDP Cache Artifacts
+      # The GitHub runner won't have real RDP cache. We must fake it 
+      # so the tools (bmc-tools) have something to target.
+      run: |
+        $CachePath = "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
+        New-Item -Path $CachePath -ItemType Directory -Force | Out-Null
+        
+        # Create a dummy bcache.bmc file with random data (header mimicking might be needed for strict tools, but usually size > 0 is enough for a "run" test)
+        $DummyData = new-object byte[] 1024
+        (new-object Random).NextBytes($DummyData)
+        [IO.File]::WriteAllBytes("$CachePath\bcache.bmc", $DummyData)
+        [IO.File]::WriteAllBytes("$CachePath\Cache0000.bin", $DummyData)
+        
+        Write-Host "Created dummy RDP cache files at $CachePath"
 
-      - name: Run T1652 tests
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          Invoke-AtomicTest T1652 -TestNumbers 2,3 -Path "./atomic-red-team/atomics" -Verbose
+    - name: Install Invoke-AtomicRedTeam
+      run: |
+        # We install the execution framework, but we tell it NOT to download the atomics repo
+        # because we want to use the atomics checked out in the current workspace.
+        IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing);
+        Install-AtomicRedTeam -getAtomics $false -Force
+      shell: powershell
 
-  macos-test:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          path: './atomic-red-team'
-
-      - name: Install Invoke-AtomicRedTeam
-        shell: pwsh
-        run: |
-          Install-Module -Name Invoke-AtomicRedTeam -Force -Scope CurrentUser
-
-      - name: Run T1652 tests
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          Invoke-AtomicTest T1652 -TestNumbers 4,5 -Path "./atomic-red-team/atomics" -Verbose
-        continue-on-error: true
+    - name: Run Atomic Test T1113
+      run: |
+        # Point to the 'atomics' folder in your checked-out repo
+        $RepoAtomicsPath = "$env:GITHUB_WORKSPACE\atomics"
+        
+        Write-Host "Running T1113 from: $RepoAtomicsPath"
+        
+        # This runs ALL tests in T1113. 
+        # If you want only your specific test, add: -TestGuids "YOUR-GUID-HERE"
+        Invoke-AtomicTest T1113 -PathToAtomicsFolder $RepoAtomicsPath -GetPrereqs
+        Invoke-AtomicTest T1113 -PathToAtomicsFolder $RepoAtomicsPath -Force
+      shell: powershell
