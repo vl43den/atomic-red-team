@@ -39,3 +39,35 @@ atomic_tests:
     cleanup_command: Just delete the resulting T1027.013_decryptedEicar.txt file.
     name: powershell
     elevation_required: false
+- name: Password-Protected ZIP Payload Extraction and Execution
+  description: |
+    Extracts and executes a script from a password-protected ZIP archive.
+    This technique is commonly used by malware families like Emotet and QBot to deliver payloads
+    via email attachments where the password is provided in the message body.
+    The encrypted ZIP evades static file analysis until extracted at runtime.
+    Upon successful execution, displays confirmation and system information.
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    zip_password:
+      description: Password used to protect the ZIP archive
+      type: String
+      default: infected
+  executor:
+    command: |
+      echo '#!/bin/bash' > /tmp/art_payload.sh
+      echo 'echo "T1027.013: Payload extracted from encrypted ZIP"' >> /tmp/art_payload.sh
+      echo 'echo "Hostname: $(hostname)"' >> /tmp/art_payload.sh
+      echo 'echo "User: $(whoami)"' >> /tmp/art_payload.sh
+      echo 'uname -a' >> /tmp/art_payload.sh
+      cd /tmp && zip -P "#{zip_password}" art_encrypted.zip art_payload.sh
+      rm /tmp/art_payload.sh
+      echo "Encrypted ZIP created. Extracting with password..."
+      unzip -P "#{zip_password}" -o /tmp/art_encrypted.zip -d /tmp/
+      echo "Executing extracted payload:"
+      bash /tmp/art_payload.sh
+    cleanup_command: |
+      rm -f /tmp/art_payload.sh
+      rm -f /tmp/art_encrypted.zip
+    name: bash
