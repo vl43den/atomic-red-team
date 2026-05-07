@@ -80,7 +80,12 @@ atomic_tests:
   - macos
   executor:
     command: |
-      bash -c 'trap "echo \$BASH_COMMAND >> /tmp/art-fish.txt" DEBUG; whoami; id; hostname'
+      bash << 'SCRIPT'
+      trap 'echo "$BASH_COMMAND" >> /tmp/art-fish.txt' DEBUG
+      whoami
+      id
+      hostname
+      SCRIPT
       cat /tmp/art-fish.txt
     cleanup_command: |
       rm -f /tmp/art-fish.txt
